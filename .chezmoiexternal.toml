@@ -15,3 +15,7 @@
     url = "https://github.com/romkatv/powerlevel10k/archive/v1.20.0.tar.gz"
     exact = true
     stripComponents = 1
+
+[data.git]
+    name = "{{ promptString "Git: Enter your committer username" }}"
+    email = "{{ promptString "Git: Enter your email address" }}"

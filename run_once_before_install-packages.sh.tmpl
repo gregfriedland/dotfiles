@@ -1,0 +1,12 @@
+{{- if eq .chezmoi.osRelease.id "ubuntu" -}}
+{{-   include "install-packages.sh_ubuntu" -}}
+{{- else -}}
+#!/bin/sh
+
+printf "%.s=" $(seq 1 $(tput cols))
+echo
+echo "FYI: Install-Package script not defined for this desktop."
+
+printf "%.s=" $(seq 1 $(tput cols))
+echo
+{{- end -}}

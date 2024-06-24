@@ -1,3 +1,37 @@
 [user]
-	email = greg@rezotx.com
-	name = Greg Friedland
+    name = {{ .git.name }}
+    email = {{ .git.email }}
+
+[alias]
+    co = checkout
+    s = status
+    cob = checkout -b
+    del = branch -D
+    br = branch --format='%(HEAD) %(color:magenta)%(refname:short)%(color:reset) - %(contents:subject) %(color:yellow)(%(committerdate:relative)) [%(authorname)]' --sort=-committerdate
+    d = diff
+    cm = commit -m
+    ll = log --oneline
+    uncommit = reset --soft HEAD~1
+    unstage = reset --soft HEAD^
+    last = log -1 HEAD --stat
+    l = log --decorate
+    cane = commit --amend --no-edit
+    a = add .
+    rc = rebase --continue
+
+[color]
+    diff = auto
+    status = auto
+    branch = auto
+    interactive = auto
+    ui = true
+    pager = true
+
+[core]
+    editor = emacs
+
+[init]
+    defaultBranch = main
+
+[pull]
+    rebase = true
