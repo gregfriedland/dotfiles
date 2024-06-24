@@ -83,10 +83,10 @@ function dus () {
 }
 
 # ALIASES
-alias gs='git status'
-alias gl='git log --decorate'
-alias gd='git diff --src-prefix="SRC " --dst-prefix="DST "'
-
+# alias gs='git status'
+# alias gl='git log --decorate'
+# alias gd='git diff --src-prefix="SRC " --dst-prefix="DST "'
+alias g=git
 alias k=kubectl
 alias kget='kubectl get --sort-by=.status.startTime'
 
