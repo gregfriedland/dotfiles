@@ -1,2 +1,4 @@
+#!/bin/sh
+
 echo "Setting up ZSH as the default shell:"
-chsh -s /usr/bin/zsh
+sudo chsh $USER -s /usr/bin/zsh

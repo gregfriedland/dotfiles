@@ -1,6 +1,7 @@
 {{- if eq .chezmoi.osRelease.id "ubuntu" -}}
 {{-   include "install-packages.sh_ubuntu" -}}
 {{- else -}}
+
 #!/bin/sh
 
 printf "%.s=" $(seq 1 $(tput cols))
