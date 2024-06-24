@@ -2,18 +2,19 @@
 
 printf "%.s=" $(seq 1 $(tput cols))
 echo
-echo "Updating System:"
+echo "Updating apt packages:"
 for action in update upgrade autoclean autoremove; do
     sudo DEBIAN_FRONTEND=noninteractive apt $action -y
 done
 
 printf "%.s=" $(seq 1 $(tput cols))
 echo
-echo "Adding repository for fastfetch"
-sudo add-apt-repository ppa:zhangsongcui3371/fastfetch
-sudo add-apt-repository ppa:deadsnakes/ppa
+echo "Adding apt repositories:"
+sudo add-apt-repository -y ppa:zhangsongcui3371/fastfetch
+sudo add-apt-repository -y ppa:deadsnakes/ppa
 sudo apt update
-echo
+
+printf "%.s=" $(seq 1 $(tput cols))
 echo "Installing terminal tools:"
 for package in autojump-zsh bash-completion cmatrix git kitty lsd man fastfetch neovim tldr unzip zip zsh curl wget emacs python3.10 python3.10-venv python3.10-dev; do
     sudo DEBIAN_FRONTEND=noninteractive apt install $package -y
