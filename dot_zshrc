@@ -91,3 +91,4 @@ alias k=kubectl
 alias kget='kubectl get --sort-by=.status.startTime'
 
 export PATH=$PATH:~/bin
+export LD_LIBRARY_PATH=/usr/local/cuda-12.5/targets/x86_64-linux/lib/
