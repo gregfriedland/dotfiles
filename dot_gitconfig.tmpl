@@ -15,9 +15,19 @@
     unstage = reset --soft HEAD^
     last = log -1 HEAD --stat
     l = log --decorate
+    ca = commit --amend
     cane = commit --amend --no-edit
     a = add .
+    r = rebase
     rc = rebase --continue
+    ra = rebase --abort
+    rs = rebase --skip
+    ms = machete status
+    ma = machete add
+    me = machete edit
+    mu = !git machete go up && git machete status
+    md = !git machete go down && git machete status
+    mup = machete update
 
 [color]
     diff = auto
@@ -35,3 +45,12 @@
 
 [pull]
     rebase = true
+
+[push]
+    default = current
+
+[filter "lfs"]
+    clean = git-lfs clean -- %f
+    smudge = git-lfs smudge -- %f
+    process = git-lfs filter-process
+    required = true
