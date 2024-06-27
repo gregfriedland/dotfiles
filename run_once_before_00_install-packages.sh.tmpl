@@ -1,13 +1,12 @@
-{{- if eq .chezmoi.osRelease.id "ubuntu" -}}
-{{-   include "install-packages.sh_ubuntu" -}}
-{{- else -}}
-
+{{- if eq .chezmoi.os "darwin" -}}
 #!/bin/sh
 
-printf "%.s=" $(seq 1 $(tput cols))
-echo
-echo "FYI: Install-Package script not defined for this desktop."
+echo "Running on Mac. No packages to install."
+{{ else if eq .chezmoi.osRelease.id "ubuntu" -}}
+{{   include "install-packages.sh_ubuntu" -}}
+{{   include "install-packages.sh_cuda" -}}
+{{- else -}}
+#!/bin/sh
 
-printf "%.s=" $(seq 1 $(tput cols))
-echo
+echo "Unknown OS: {{.chezmoi.os}}. No packages to install."
 {{- end -}}
