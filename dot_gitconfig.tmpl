@@ -7,7 +7,7 @@
     s = status
     cob = checkout -b
     del = branch -D
-    br = branch --format='%(HEAD) %(color:magenta)%(refname:short)%(color:reset) - %(contents:subject) %(color:yellow)(%(committerdate:relative)) [%(authorname)]' --sort=-committerdate
+    b = !git branch -vr --format='%(HEAD) %(color:magenta)%(refname:short)%(color:reset) - %(contents:subject) %(color:yellow)(%(committerdate:relative)) [%(authorname)]' --sort=-committerdate | grep greg
     d = diff
     cm = commit -m
     ll = log --oneline
@@ -28,6 +28,7 @@
     mu = !git machete go up && git machete status
     md = !git machete go down && git machete status
     mup = machete update
+    backup = !git branch backup/$(git rev-parse --abbrev-ref HEAD)
 
 [color]
     diff = auto

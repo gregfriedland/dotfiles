@@ -1,12 +1,16 @@
-{{- if eq .chezmoi.os "darwin" -}}
 #!/bin/sh
 
-echo "Running on Mac. No packages to install."
-{{ else if eq .chezmoi.osRelease.id "ubuntu" -}}
-{{   include "install-packages.sh_ubuntu" -}}
-{{   include "install-packages.sh_cuda" -}}
-{{- else -}}
-#!/bin/sh
+{{ if eq .chezmoi.os "darwin" }}
 
+echo "Running on Mac."
+{{   include "install-packages.sh_mac" }}
+
+{{ else if eq .chezmoi.osRelease.id "ubuntu" }}
+
+echo "Running on Ubuntu."
+{{   include "install-packages.sh_ubuntu" }}
+{{   include "install-packages.sh_cuda" }}
+
+{{ else }}
 echo "Unknown OS: {{.chezmoi.os}}. No packages to install."
-{{- end -}}
+{{ end }}
