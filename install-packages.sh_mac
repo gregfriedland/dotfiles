@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+printf "%.s=" $(seq 1 $(tput cols))
+echo
+echo "Installing brew packages"
+brew install autojump cmatrix git git-lfs neovim tldr zsh curl wget emacs fastfetch lsd python@3.10
+
+printf "%.s=" $(seq 1 $(tput cols))
+echo
+echo "Tying up loose ends"
+git lfs install

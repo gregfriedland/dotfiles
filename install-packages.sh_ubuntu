@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 printf "%.s=" $(seq 1 $(tput cols))
 echo
