@@ -19,10 +19,14 @@ echo
 echo "Installing apt packages:"
 wget --quiet https://github.com/lsd-rs/lsd/releases/download/v1.1.2/lsd-musl_1.1.2_amd64.deb -O /tmp/lsd-musl_1.1.2_amd64.deb
 wget --quiet https://github.com/fastfetch-cli/fastfetch/releases/download/2.16.0/fastfetch-linux-amd64.deb -O /tmp/fastfetch-linux-amd64.deb
-
 for package in autojump bash-completion cmatrix git git-lfs man neovim tldr unzip zip zsh curl wget emacs /tmp/fastfetch-linux-amd64.deb /tmp/lsd-musl_1.1.2_amd64.deb python3.10 python3.10-venv python3.10-dev; do
     sudo DEBIAN_FRONTEND=noninteractive apt install $package -y
 done
+
+printf "%.s=" $(seq 1 $(tput cols))
+echo
+echo "Installing binaries to ~/bin:"
+curl https://github.com/atombender/ktail/releases/download/v1.4.0/ktail-linux-amd64 -o ~/bin/ktail
 
 printf "%.s=" $(seq 1 $(tput cols))
 echo

@@ -77,18 +77,27 @@ zle -N down-line-or-local-history
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
+# gcloud
+# The next line updates PATH for the Google Cloud SDK.
+if [ -f '~/bin/google-cloud-sdk/path.zsh.inc' ]; then . '~/bin/google-cloud-sdk/path.zsh.inc'; fi
+# The next line enables shell command completion for gcloud.
+if [ -f '~/google-cloud-sdk/completion.zsh.inc' ]; then . '~/bin/google-cloud-sdk/completion.zsh.inc'; fi
+
 # FUNCTIONS
 function dus () {
     du -s --block-size=1G --threshold=1G "$@" | sort -nk1
 }
 
 # ALIASES
-# alias gs='git status'
-# alias gl='git log --decorate'
-# alias gd='git diff --src-prefix="SRC " --dst-prefix="DST "'
 alias g=git
 alias k=kubectl
 alias kget='kubectl get --sort-by=.status.startTime'
+alias kgp='kubectl get pods --sort-by=.status.startTime'
+alias kdp='kubectl describe pods'
+alias kl='kubectl logs'
+alias klf='kubectl logs -f'
+alias kex='kubectl exec -it'
 
-export PATH=$PATH:~/bin
+export PATH=$PATH:~/bin:~/bin/google-cloud-sdk/bin
 export LD_LIBRARY_PATH=/usr/local/cuda-12.5/targets/x86_64-linux/lib/
+

@@ -1,13 +1,18 @@
 #!/bin/sh
 
-{{ if eq .chezmoi.os "darwin" }}
+mkdir -p ~/bin
 
+{{ if eq .chezmoi.os "darwin" }}
 echo "Running on Mac."
 {{   include "install-packages.sh_mac" }}
 
 {{ else if eq .chezmoi.osRelease.id "ubuntu" }}
-
 echo "Running on Ubuntu."
+{{   include "install-packages.sh_ubuntu" }}
+{{   include "install-packages.sh_cuda" }}
+
+{{ else if eq .chezmoi.osRelease.id "debian" }}
+echo "Running on Debian."
 {{   include "install-packages.sh_ubuntu" }}
 {{   include "install-packages.sh_cuda" }}
 

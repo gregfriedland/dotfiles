@@ -2,8 +2,9 @@
 
 printf "%.s=" $(seq 1 $(tput cols))
 echo
-echo "Installing brew packages"
-brew install autojump cmatrix git git-lfs neovim tldr zsh curl wget emacs fastfetch lsd python@3.10
+echo "Installing brew packages:"
+brew tap atombender/ktail
+brew install autojump cmatrix git git-lfs neovim tldr zsh curl wget emacs fastfetch lsd python@3.10 atombender/ktail/ktail
 
 printf "%.s=" $(seq 1 $(tput cols))
 echo
