@@ -84,9 +84,64 @@ if [ -f '~/bin/google-cloud-sdk/path.zsh.inc' ]; then . '~/bin/google-cloud-sdk/
 if [ -f '~/google-cloud-sdk/completion.zsh.inc' ]; then . '~/bin/google-cloud-sdk/completion.zsh.inc'; fi
 
 # FUNCTIONS
-function dus () {
-    du -s --block-size=1G --threshold=1G "$@" | sort -nk1
+function du_top () {
+    du -m -t 1MB -d 5 "$@" 2>&1 | sort -nk1 | egrep -v "Operation not permitted|Permission denied"
 }
+
+function dr() {
+    docker run -it --rm --platform=linux/amd64 "$@"
+}
+
+function dr_local() {
+    # home_dir=$HOME
+    # pwd=$PWD
+    # reldir=$(python -c "import os.path; print('$pwd'.replace('$home_dir', '').lstrip('/'))")
+    # echo $reldir
+
+    # docker run -it --rm --platform=linux/amd64 -v $PWD:/root/$reldir -v $HOME:/root -w $PWD "$@"
+    docker run -it --rm --platform=linux/amd64 -v $PWD:$PWD -v $HOME:$HOME -w $PWD "$@"
+}
+
+function drmi() {
+    echo "Matching images:"
+    docker images | grep "$@"
+    read -q REPLY\?"Delete? "
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        docker images | grep "$@" | tr -s " " | cut -d" " -f3 | xargs docker rmi -f
+    fi
+}
+
+function kgn() {
+    kubectl get nodes -o json|jq -Cjr '.items[] | .metadata.name," ",.metadata.creationTimestamp," ",.metadata.labels."beta.kubernetes.io/instance-type","\n"' | sort -k2 -r
+}
+
+function k_status() {
+    echo "Nodes:"
+    kubectl get nodes "$@" -o json|jq -Cjr '.items[] | .metadata.name," ",.metadata.creationTimestamp," ",.metadata.labels."beta.kubernetes.io/instance-type","\n"' | tr "\t" " " | tr -s " " | cut -d" " -f3| sort | uniq -c | sort -r -nk1
+    echo "\nPods:"
+    kubectl get pods "$@" | grep -v STATUS | tr "\t" " " | tr -s " " | cut -d" " -f3 | sort | uniq -c | sort -r -nk1
+}
+
+function lsfull() {
+    ls "$@" | xargs  readlink -f
+}
+
+function cuts() {
+    tr "\t" " " | tr -s " " | cut -d" " "$@"
+}
+
+function cuts_count() {
+    tr "\t" " " | tr -s " " | cut -d" " "$@" | sort | uniq -c | sort -r -nk1
+}
+
+function kgwf() {
+    kubectl get --sort-by=acceptedAt flyteworkflows.flyte.lyft.com -o custom-columns=NAME:.metadata.name,WF:.metadata.labels.workflow-name,START:.acceptedAt,TARGET:inputs.literals.config.scalar.generic.target.name,STATUS:.metadata.labels.termination-status
+}
+
+# use bash word separators
+autoload -U select-word-style               
+select-word-style bash
 
 # ALIASES
 alias g=git
@@ -97,6 +152,11 @@ alias kdp='kubectl describe pods'
 alias kl='kubectl logs'
 alias klf='kubectl logs -f'
 alias kex='kubectl exec -it'
+alias di='docker images'
+alias gs='gcloud storage'
+
+
+[[ "$(which cursor)" != "" ]] && [[ "$TERM_PROGRAM" == "vscode" ]] && . $(cursor --locate-shell-integration-path zsh)
 
 export PATH=$PATH:~/bin:~/bin/google-cloud-sdk/bin
 export LD_LIBRARY_PATH=/usr/local/cuda-12.5/targets/x86_64-linux/lib/
