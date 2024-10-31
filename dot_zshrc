@@ -40,19 +40,20 @@ export EDITOR='emacs'
 export TZ="America/Los_Angeles"
 export GLOBIGNORE='*~'
 
-# disable git autocompletion
-compdef -d git
-
 ##############################################################################
 # History Configuration
 ##############################################################################
-# HISTSIZE=50000               #How many lines of history to keep in memory
-# HISTFILE=~/.zsh_history     #Where to save history to disk
-SAVEHIST=50000               #Number of history entries to save to disk
-HISTDUP=erase               #Erase duplicates in the history file
-setopt    appendhistory     #Append history to the history file (no overwriting)
-setopt    sharehistory      #Share history across terminals
-#setopt    incappendhistory  #Immediately append to the history file, not just when a term is killed
+HISTFILE=~/.zsh_history       #Where to save history to disk
+SAVEHIST=5000000               #Number of history entries to save to disk
+setopt appendhistory
+setopt sharehistory            #Share history across terminals
+setopt BANG_HIST               # Treat the '!' character specially during expansion.
+setopt EXTENDED_HISTORY        # Write the history file in the ":start:elapsed;command" format.
+setopt INC_APPEND_HISTORY      # Write to the history file immediately, not when the shell exits.
+setopt SHARE_HISTORY           # Share history between all sessions.
+setopt HIST_IGNORE_DUPS        # Don't record an entry that was just recorded again.
+setopt HIST_FIND_NO_DUPS       # Do not display a line previously found.
+setopt HIST_REDUCE_BLANKS      # Remove superfluous blanks before recording entry.
 
 # bind up/down arrows to local history only
 bindkey "OA" up-line-or-local-history
@@ -136,8 +137,21 @@ function cuts_count() {
 }
 
 function kgwf() {
-    kubectl get --sort-by=acceptedAt flyteworkflows.flyte.lyft.com -o custom-columns=NAME:.metadata.name,WF:.metadata.labels.workflow-name,START:.acceptedAt,TARGET:inputs.literals.config.scalar.generic.target.name,STATUS:.metadata.labels.termination-status
+    kubectl get --sort-by=acceptedAt flyteworkflows.flyte.lyft.com \
+        -o custom-columns=NAME:.metadata.name,WF:.metadata.labels.workflow-name,START:.acceptedAt,VERSION:.metadata.labels.launch_plan_version,STATUS:.metadata.labels.termination-status "$@"
 }
+
+function kgwf_running() {
+    kgwf "$@" | grep -v terminated | grep -v TARGET
+}
+
+function kgwf_running_all() {
+    for context in $(kubectl config get-contexts -o name); do
+        echo "Context: $context"
+        kgwf_running --context $context "$@"
+    done
+}
+
 
 # use bash word separators
 autoload -U select-word-style               
@@ -160,4 +174,7 @@ alias gs='gcloud storage'
 
 export PATH=$PATH:~/bin:~/bin/google-cloud-sdk/bin
 export LD_LIBRARY_PATH=/usr/local/cuda-12.5/targets/x86_64-linux/lib/
+export PYTHONPATH=~/src/internal
+
+source <(fzf --zsh)
 
