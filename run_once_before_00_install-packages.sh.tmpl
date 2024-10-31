@@ -1,20 +1,16 @@
 #!/bin/sh
 
+echo "### Running: run_once_before_00_install-packages.sh"
+
 mkdir -p ~/bin
 
 {{ if eq .chezmoi.os "darwin" }}
 echo "Running on Mac."
 {{   include "install-packages.sh_mac" }}
 
-{{ else if eq .chezmoi.osRelease.id "ubuntu" }}
-echo "Running on Ubuntu."
+{{ else if or (eq .chezmoi.osRelease.id "ubuntu") (eq .chezmoi.osRelease.id "debian") }}
+echo "Running on Ubuntu/Debian."
 {{   include "install-packages.sh_ubuntu" }}
-{{   include "install-packages.sh_cuda" }}
-
-{{ else if eq .chezmoi.osRelease.id "debian" }}
-echo "Running on Debian."
-{{   include "install-packages.sh_ubuntu" }}
-{{   include "install-packages.sh_cuda" }}
 
 {{ else }}
 echo "Unknown OS: {{.chezmoi.os}}. No packages to install."

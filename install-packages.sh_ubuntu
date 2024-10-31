@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 
+echo "### Running: install-packages.sh_ubuntu"
+
+printf "%.s=" $(seq 1 $(tput cols))
+echo
+echo "Setting up zsh"
+
+echo "source ~/.zshrc" >> ~/.zshenv
+sudo chsh -s $(which zsh)
+
 printf "%.s=" $(seq 1 $(tput cols))
 echo
 echo "Updating apt packages:"
