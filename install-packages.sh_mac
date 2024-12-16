@@ -12,13 +12,3 @@ printf "%.s=" $(seq 1 $(tput cols))
 echo
 echo "Tying up loose ends"
 git lfs install
-
-printf "%.s=" $(seq 1 $(tput cols))
-echo
-echo "Setting up zsh"
-if [ "$(dscl . -read /Users/$(whoami) UserShell | grep zsh)" = "" ]; then
-    chsh -s $(which zsh) $(whoami)
-    echo "Changed default shell to zsh. Changes will take effect after logout."
-else
-    echo "zsh is already the default shell"
-fi

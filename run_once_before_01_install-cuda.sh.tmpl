@@ -1,0 +1,10 @@
+#!/bin/sh
+
+echo "### Running: run_once_before_01_install-cuda.sh"
+
+{{ if and .chezmoi.osRelease (or (eq .chezmoi.osRelease.id "ubuntu") (eq .chezmoi.osRelease.id "debian")) }}
+echo "Running on Ubuntu/Debian: cuda={{.flags.cuda}}"
+{{ if (eq .flags.cuda "true") }}
+{{   include "install-packages.sh_cuda" }}
+{{ end }}
+{{ end }}

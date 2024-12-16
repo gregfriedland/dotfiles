@@ -29,7 +29,7 @@ DISABLE_AUTO_UPDATE="true"
 # Custom plugins may be added to $ZSH_CUSTOM/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
-plugins=(git autojump colored-man-pages)
+plugins=(git autojump colored-man-pages fzf)
 
 typeset -g POWERLEVEL9K_INSTANT_PROMPT=quiet
 
@@ -176,5 +176,4 @@ export PATH=$PATH:~/bin:~/bin/google-cloud-sdk/bin
 export LD_LIBRARY_PATH=/usr/local/cuda-12.5/targets/x86_64-linux/lib/
 export PYTHONPATH=~/src/internal
 
-source <(fzf --zsh)
 
