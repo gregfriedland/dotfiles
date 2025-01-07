@@ -94,13 +94,7 @@ function dr() {
 }
 
 function dr_local() {
-    # home_dir=$HOME
-    # pwd=$PWD
-    # reldir=$(python -c "import os.path; print('$pwd'.replace('$home_dir', '').lstrip('/'))")
-    # echo $reldir
-
-    # docker run -it --rm --platform=linux/amd64 -v $PWD:/root/$reldir -v $HOME:/root -w $PWD "$@"
-    docker run -it --rm --platform=linux/amd64 -v $PWD:$PWD -v $HOME:$HOME -w $PWD "$@"
+    docker run -it --rm --platform=linux/amd64 -v ~/.config:/root/.config -v $PWD:/workspace -w /workspace "$@"
 }
 
 function drmi() {
@@ -172,7 +166,7 @@ alias gs='gcloud storage'
 
 [[ "$(which cursor)" != "" ]] && [[ "$TERM_PROGRAM" == "vscode" ]] && . $(cursor --locate-shell-integration-path zsh)
 
-export PATH=$PATH:~/bin:~/bin/google-cloud-sdk/bin
+export PATH=$PATH:~/bin:~/bin/google-cloud-sdk/bin:~/.local/bin
 export LD_LIBRARY_PATH=/usr/local/cuda-12.5/targets/x86_64-linux/lib/
 export PYTHONPATH=~/src/internal
 
