@@ -166,7 +166,9 @@ alias gs='gcloud storage'
 
 [[ "$(which cursor)" != "" ]] && [[ "$TERM_PROGRAM" == "vscode" ]] && . $(cursor --locate-shell-integration-path zsh)
 
-export PATH=$PATH:~/bin:~/bin/google-cloud-sdk/bin:~/.local/bin
+eval "$(starship init zsh)"
+
+export PATH=$PATH:~/bin:~/bin/google-cloud-sdk/bin:~/.local/bin:~/.cargo/bin
 export LD_LIBRARY_PATH=/usr/local/cuda-12.5/targets/x86_64-linux/lib/
 export PYTHONPATH=~/src/internal
 
