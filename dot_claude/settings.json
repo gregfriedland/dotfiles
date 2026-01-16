@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__graphiti-memory__add_memory",
+      "mcp__graphiti-memory__search_memory_facts",
+      "mcp__graphiti-memory__search_nodes",
+      "mcp__graphiti-memory__get_episodes",
+      "mcp__graphiti-memory__get_status",
+      "Read",
+      "WebSearch",
+      "TodoWrite",
+      "Glob",
+      "Grep",
+      "BashOutput",
+      "Fetch",
+      "Bash",
+      "WebFetch"
+    ],
+    "deny": [],
+    "ask": [],
+    "defaultMode": "acceptEdits",
+    "enabledPlugins": {
+      "pyright-lsp@claude-plugins-official": true,
+      "clangd-lsp@claude-plugins-official": true
+    }
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/gregfriedland/src/external/claude-code-permissions-hook/target/release/claude-code-permissions-hook run --config ~/.config/claude-code-permissions-hook.toml"
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "rust-analyzer-lsp@claude-plugins-official": true
+  }
+}
