@@ -149,6 +149,54 @@ Host gnina-profile-vm.us-west1-a.gke-test-421317
 rsync -avz --progress --exclude='.git' /local/src/ gnina-profile-vm.us-west1-a.gke-test-421317:~/src/
 ```
 
+## Rsync via gcloud CLI Wrapper (Alternative)
+
+If you don't want to modify SSH config, use a wrapper script approach:
+
+### 1. Create wrapper script
+
+```bash
+mkdir -p /tmp/claude/tmp
+cat > /tmp/claude/tmp/gcloud-rsync.sh << 'EOF'
+#!/bin/bash
+# Wrapper for rsync -e to tunnel through gcloud compute ssh
+shift  # drop the dummy host argument
+gcloud compute ssh INSTANCE_NAME --zone=ZONE --tunnel-through-iap -- "$@"
+EOF
+chmod +x /tmp/claude/tmp/gcloud-rsync.sh
+```
+
+Replace `INSTANCE_NAME` and `ZONE` with actual values.
+
+### 2. Run rsync
+
+```bash
+rsync -avz --progress \
+  --exclude='.git' --exclude='build' --exclude='__pycache__' \
+  -e /tmp/claude/tmp/gcloud-rsync.sh \
+  /local/path/ vm:/remote/path/
+```
+
+Note: `vm:` is a dummy host label - the wrapper ignores it and uses gcloud directly.
+
+### Example for gnina-profile-vm
+
+```bash
+# Create wrapper
+cat > /tmp/claude/tmp/gcloud-rsync.sh << 'EOF'
+#!/bin/bash
+shift
+gcloud compute ssh gnina-profile-vm --zone=us-west1-a --tunnel-through-iap -- "$@"
+EOF
+chmod +x /tmp/claude/tmp/gcloud-rsync.sh
+
+# Sync source code
+rsync -avz --progress \
+  --exclude='.git' --exclude='build' \
+  -e /tmp/claude/tmp/gcloud-rsync.sh \
+  gninasrc/ vm:/home/greg_rezotx_com/gnina/gninasrc/
+```
+
 ## Organization Info
 
 - **Customer ID**: C01vjieca

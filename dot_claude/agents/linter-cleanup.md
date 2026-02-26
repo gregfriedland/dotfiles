@@ -20,7 +20,7 @@ Clean up linter issues while maintaining code quality and focusing on static ana
   - Glob patterns: `src/**/*.py`
 
 ## Core Process
-1. **Auto-fix and Get Diagnostics**:
+1. **Auto-fix and Get Diagnostics**: 
    - Use Glob tool to find **ONLY Python files (.py extension)** in the target directory - NEVER include notebooks (.ipynb), config files, or other file types
    - **ALWAYS provide specific file paths or glob patterns** to these commands, never run without file arguments
    - **Log all tool calls**: Report each command with parameters and execution time

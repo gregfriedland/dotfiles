@@ -1,0 +1,366 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+This is Rezo's internal monorepo containing all their computational biology, drug discovery, and bioinformatics code. The repository is organized as a Python monorepo with multiple subprojects that facilitate code sharing and reuse across different scientific domains.
+
+## Development Commands
+
+General instructions for CLI commands:
+* Never use the 'timeout' linux command.
+* Instead of 'rm' move files to /tmp/claude/trash.
+* Create temporary files in /tmp/claude/tmp.
+* All scratch scripts should be created in the format `/tmp/claude/tmp/YYYYMMDD-HHMMSS-name...`, never with `<< EOF`
+* Always redirect CLI output to a temporary file so it can be inspected later.
+* When you submit remote jobs to github CLI or kubernetes (e.g. via Flyte), monitor the job status and fix any issues that arise.
+* Always run installation commands with non-interactive mode flags (e.g., `DEBIAN_FRONTEND=noninteractive apt-get install -y`, `yum install -y`, `pip install --no-input`).
+
+### Linting
+for python files:
+* `ruff check --preview`
+* `ruff format`
+* `uvx pyright`
+
+### Testing
+* Basic: `PYTHONPATH=. pytest`
+* Run tests for a specific subproject: `PYTHONPATH=$PWD pytest rezo/common/biochem -v`
+* Run tests, limit coverage reporting to specific directory or subproject and show lines not covered: `coverage run --omit="*/tests/*" --source rezo/common/biochem -m pytest rezo/common/biochem && coverage report --show-missing`
+* Coverage for changed files only: `coverage report --include=$(git diff --name-only origin/main...HEAD -- '*.py' | paste -sd "," -)`
+* Skip slow tests: `pytest -m "not slow" rezo/atlas/tests/`
+* Never add skip decorator to tests unless I explicitly tell you to.
+
+### All CI checks
+
+**⚠️ MANDATORY: You MUST run local CI checks before EVERY `gt submit` or `git push`. Never push without passing checks first.**
+
+* Run all CI checks (linting, formatting, type checking, dependencies, and tests but not docker builds) locally for only tests affected by changes: `PYTHONPATH=$PWD .venv/bin/python infra/ci/run_all_local.py --changed_only`
+* Run CI checks for a specific env, skipping tests: `PYTHONPATH=$PWD .venv/bin/python infra/ci/run_all_local.py --changed_only --skip test --env base`
+* When changes span multiple environments, run `run_all_local.py --changed_only --skip test --env <env>` for each affected environment. Check which envs are affected by looking at which subprojects were changed and their `subproject.yaml` environment field.
+
+### Remote CI checks
+* Check CI status for a PR: `gh pr checks <pr-number> --repo rezotx/internal`
+* **IMPORTANT**: `gh pr checks` can miss failures (e.g. re-runs mask them). Always also check for failed jobs directly: `gh api repos/rezotx/internal/actions/runs/<run-id>/jobs --jq '.jobs[] | select(.conclusion=="failure") | {name: .name, id: .id}'`
+* Get logs for a failed job: `gh api repos/rezotx/internal/actions/jobs/<job-id>/logs > /tmp/claude/tmp/ci_logs.txt`
+
+### Graphite
+* Display PR stack: `gt log --no-interactive`
+* Move up and down in the PR stack: `gt {up,down} --no-interactive`
+* Initialize: `gt init --trunk main --no-interactive`
+* Track branch: `gt track --no-interactive [--parent <parent branch>]`
+* Sync local repo with remote (required after branches are merged): `gt sync --no-interactive -f`
+* Restack current branch: `gt restack --only --no-interactive`
+* Push current branch and create/update PR (run after tracking): `gt submit --publish -f --no-interactive`. Never use `git push` to push branches since that interferes with graphite.
+
+### Git
+* Update PR title and description: `gh api repos/{owner}/{repo}/pulls/{pr-id} -X PATCH -f title="<title>" -f body="<body>"`
+* When rebasing a source branch onto a target branch (to help protect claude from accidentally clobbering changes)
+  * First rebase both branches onto latest main: `git rebase main <source/target-branch>`
+  * Never use blanket conflict resolution
+    * ❌ Bad: `git checkout --theirs file.py`
+    * ✅ Good: Run git diff and manually resolve conflicts
+* **NEVER** add all modified files with `git add -A`, etc. Always add files one by one. 
+    
+### Environment Management
+* **ALWAYS** create/use the virtual environment in the repo directory: `/path/to/repo/.venv`
+* Source the environment: `source .venv/bin/activate`
+* Add/update packages: Edit `infra/environment/config/<environment>/requirements.in`, then compile: `python3.10 -m infra.environment.bin compile --env <environment name>`
+* Create/update current python environment with dev dependencies: `python3.10 -m infra.environment.bin update --env <environment name> --dev`
+
+### Waiting for CI Docker Image Builds
+
+After pushing changes that affect Docker images (e.g. requirements changes), you **must** wait for the CI image build to complete before running Flyte jobs that depend on the new image. The Flyte image tag is based on the git commit hash, and that tag is created by the `post-build` CI step.
+
+1. Push changes via `gt submit --publish -f --no-interactive`
+2. Get the build workflow run ID from `gh pr checks <pr-number> --repo rezotx/internal`
+3. Poll the build jobs until the relevant `build (<env>,linux)` jobs AND `post-build` all show `status=completed, conclusion=success`:
+   ```bash
+   gh api repos/rezotx/internal/actions/runs/<run-id>/jobs > /tmp/claude/tmp/ci_jobs.json
+   # Then parse the JSON to check job statuses
+   ```
+4. Once `post-build` completes, fetch the new git tag: `git fetch origin --tags`
+5. **Only then** run the Flyte job
+
+**IMPORTANT**: Do NOT run Flyte jobs before `post-build` completes — the image tag won't exist yet and the job will fail with an image pull error.
+
+### Subproject Management
+* Find unregistered subprojects: `python infra/ci/find_unregistered_subprojects.py`
+* Validate dependencies for a subproject: `PYTHONPATH=$(pwd) python infra/ci/validate_dependencies.py <subproject path>`
+
+### Kubernetes
+
+#### Setup
+* Add GKE cluster contexts:
+  * West1: `gcloud container clusters get-credentials opta-uc-us-west1 --region us-west1 --project gke-test-421317 && kubectl config rename-context gke_gke-test-421317_us-west1_opta-uc-us-west1 west1`
+  * Central1: `gcloud container clusters get-credentials opta-uc-us-central1 --region us-central1 --project gke-test-421317 && kubectl config rename-context gke_gke-test-421317_us-central1_opta-uc-us-central1 central1`
+  * East5: `gcloud container clusters get-credentials opta-uc-us-east5 --region us-east5 --project gke-test-421317 && kubectl config rename-context gke_gke-test-421317_us-east5_opta-uc-us-east5 east5`
+  * South1: `gcloud container clusters get-credentials opta-uc-us-south1 --region us-south1 --project gke-test-421317 && kubectl config rename-context gke_gke-test-421317_us-south1_opta-uc-us-south1 south1`
+
+#### Managing Contexts
+* List available contexts: `kubectl config get-contexts`
+* Switch to cluster context: `kubectl config use-context <context-name>` (e.g., west1, central1, east5, south1)
+
+#### Debugging Flyte Executions
+* Get execution ID from Flyte console URL (e.g., `ax5dxqhk4ljcg7rrm8ms`)
+* Find pods: `kubectl get pods -n development --sort-by=.metadata.creationTimestamp | grep <execution-id>`
+* Get logs:
+  * Basic logs: `kubectl logs -n development <pod-name>`
+  * Last N lines: `kubectl logs -n development <pod-name> --tail=200`
+  * Follow logs in real-time: `kubectl logs -n development <pod-name> -f`
+* The actual task pod usually has suffix `-dn0-0`
+* List running/finished flyte executions: `kubectl get flyteworkflows.flyte.lyft.com`
+* Delete flyte execution: `kubectl delete flyteworkflows.flyte.lyft.com <execution-id>`
+* Delete pod: `kubectl delete pod <pod-name> -n development`
+* Exec into pod: `kubectl exec -it <pod-name> -n development -- bash`
+* Reserve GPU pod: `kubectl run <pod-name> --image=<image> --namespace=development --restart=Never --overrides='{"spec": {"nodeSelector": {"cloud.google.com/gke-accelerator": "nvidia-l4"}, "affinity": {"nodeAffinity": {"requiredDuringSchedulingIgnoredDuringExecution": {"nodeSelectorTerms": [{"matchExpressions": [{"key": "flyte.org/node-role", "operator": "In", "values": ["worker"]}, {"key": "cloud.google.com/gke-spot", "operator": "DoesNotExist"}]}]}}}, "tolerations": [{"key": "flyte.org/node-role", "operator": "Equal", "value": "worker", "effect": "NoSchedule"}, {"key": "nvidia.com/gpu", "operator": "Equal", "value": "present", "effect": "NoSchedule"}, {"key": "nvidia.com/gpu", "operator": "Exists", "effect": "NoSchedule"}], "containers": [{"name": "gpu-container", "image": "<image>", "command": ["sleep", "<seconds>"], "env": [{"name": "LD_LIBRARY_PATH", "value": "/usr/local/nvidia/lib64"}, {"name": "PATH", "value": "/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"}], "resources": {"requests": {"cpu": "15", "memory": "57600M", "ephemeral-storage": "30G", "nvidia.com/gpu": "1"}, "limits": {"cpu": "16", "memory": "57600M", "ephemeral-storage": "30G", "nvidia.com/gpu": "1"}}, "securityContext": {"privileged": true}}]}}' -- sleep <seconds>`
+
+## Python Environments
+
+- `base`: Core environment
+- `r2d2`: For R2D2 knowledge graph work
+- `atlas`: For ATLAS drug discovery
+- `alphafold`: For protein folding
+- `chai`, `boltz`: For specific ML models
+- `openmm`, `gnina`, `lumos`: Specialized environments
+
+Each environment can have a requirements.txt file for one or more architectures such as macos, linux, linux-cuda, linux-tpu.
+
+## Subprojects
+
+Selected list of subprojects:
+- **r2d2**: Knowledge graph GNN for drug repurposing and target identification
+- **atlas**: Structural computational chemistry and cheminformatics for drug discovery
+- **rezogpt**: AI tool for scientific literature retrieval and association evaluation using LLMs
+- **d2rkg**: Knowledge graph assembly and manipulation from different data sources
+- **common**: Shared utilities used across multiple projects (biochem, flyte, ML, utils, etc.)
+- **experimental**: Work-in-progress code that hasn't undergone full review
+- **legacy**: Previous repo code for APMS data analysis, AlphaFold pipeline, and Colab notebooks
+
+Each subproject must have a `subproject.yaml` file declaring:
+- `environment`: Which Python environment to use
+- `internal_dependencies`: List of other subprojects this depends on
+
+### Dependency Rules
+- No circular dependencies between subprojects
+- Dependencies must be explicitly declared
+- Parent subproject environment must be compatible with child environments
+- Code in `experimental` cannot be imported by other subprojects
+
+## Code Standards
+
+- **Init files**: Add blank `__init__.py` files to new directories.
+- **Imports**: NEVER import modules inside functions or classes, even with `# noqa` comments to suppress linter warnings. If you encounter a circular import, refactor the code structure instead of using inline imports or ask the user how to proceed. Never import with wildcards. Use absolute imports to the root of the monorepo rather than relative ones.
+- **Line length**: never exceed 80 characters, including comments, except for long URLs (in which case append `# noqa: E501` to the line)
+- **Python version**: 3.12 (handled by uv managed python)
+- **Documentation**: Use Google-style docstrings (pydocstyle). Include descriptive file-level, class-level, and method-level docstrings with `Args` and `Returns` sections. Avoid using qualitative adjectives and adverbs like "robust", "efficient", or "comprehensive".
+- **Code formatting**: run `ruff format` on every modified file. This should automatically reformat your code to fit our expectations about line length and import order.
+- **Code style**: ruff with pycodestyle, pyupgrade, pydocstyle, logging checks
+- **Type hints**: for all variables and returns for all methods. Use `list`, `dict`, `tuple` instead of `List`, `Dict`, `Tuple`
+- **Naming**: Use “_” for variables that are ignored (i.e. if you are only using one of the outputs of a function return and the others are ignored)
+- **Flyte v2 tasks**: Flyte v2 task functions must be decorated with `@rz_task` (from `rezo.common_v2.flyte.entity_v2`) and must always have a `_task` suffix (e.g. `_export_bq_to_gcs_task`, `cluster_enamine_library_task`).
+- **Global constants**: Place all constants (public CAPS and private `_CAPS`) at the top of the file, after imports but before `logger` and any functions/classes. Public constants first, then private constants. Avoid global variables.
+- **Logging**: Don't use "print()" unless you're in a top-level script file with a main() function. Create the logger after constants: `logger = logging.getLogger(__name__)`. Output messages with f-strings using  `logger.debug()` etc.
+- **Formatted tables**: create formatted tables for display using pandas/tabulate
+- **Exceptions**: Never "swallow" exceptions without at least producing some sort of output at the debug level 
+- **CLI scripts**: when creating CLI flags, use underscores instead of dashes within flags
+- **GCS**: Use cloudpathlib when working with GCS urls e.g. `from rezo.common.utils.gcs import GSPath`
+- **Type errors**: add `# type: ignore` to lines that trigger unexpected type errors
+- **Init files**: Add blank `__init__.py` files to new directories
+- **Enums**: Use `enum.Enum` for all int or string constants that are mutually exclusive. Never pass raw string value choices to functions.
+- **Private methods**: Use `_` prefix for private object methods and module functions.
+- **OOP**: Group related functions and state information into classes. Use `__init__` to initialize state, and `__str__` to return a detailed yet fast-to-run string representation of the object. 
+- **Public object methods**: Aim to minimize the number of public object methods in a class. Make intermediate methods private with `_` prefix.
+- **Functors**: Use functors when there is a clear high-level "action" method that calls private methods. 
+- **Abstract classes and factories**: When there are classes that perform similar tasks, have them inherit from a common (potentially abstract) base class. Use an enum with the class names and add the factory method directly to the enum class rather than as a standalone function. If the classes accept different arguments, generalize the arguments (e.g. with some optional ones) so they apply to all the classes.
+- **Object member variables**: initialize all member variables inside `__init__`; never in other methods. Convert member variables to local variables when they're only used in one method.
+- **BaseModel**: When classes have state, have the inherit from `rezo.common.utils.basemodel.BaseModelNoExtra` to enforce type safety.
+- **Shared code location**: Move common code to (potentially new) files in the appropriate utility directory.
+- **Function length**: Keep functions under 50 lines of code.
+- **File length**: Keep files under 1000 lines of code.
+- **Callable types**: When passing function pointers to methods, use a callable type hint like `Callable[[pd.DataFrame, pd.Series, pd.DataFrame], np.ndarray]` instead of a generic `Callable`. When it's used in multiple places, define a type top-level alias for the callable type.
+- **Required parameters**: When refactoring method signatures, make previously optional parameters required if they are always needed.
+- **Simplifying initialization**: When refactoring classes, remove initialization parameters that are specific to certain implementations. Move these parameters to factory methods or to where the implementations are created.
+- **Naming**: When refactoring, use descriptive method names that clearly indicate their purpose. For example, `run_full_analysis` → `run_analysis_all` to indicate it runs all analysis types. Use descriptive naming for classes instead of general concepts. For example, `StatisticalTester` → `QSetStatisticalTester` when it's specific to Q-set analysis.
+- **File naming**: When renaming the main class in a file, ensure the new filename updates as well, including any test files.
+
+## Design Patterns
+
+* **BaseModelNoExtra classes**: Use BaseModelNoExtra (from rezo.common.utils.basemodel) for configuration/runner classes to enforce type safety and prevent typos via extra="forbid"
+* **State + Logic together**: Group related configuration and methods in the same BaseModelNoExtra sub-class (e.g., AnvilRunner contains both config fields and train() method)
+* **PydanticArgparse for CLI**: Use PydanticArgparse to automatically generate CLI from Pydantic models which converts field names to kebab-case flags (e.g., model_type becomes --anvil.model-type)
+* **Nested structure**: Nest configuration classes to create hierarchical CLI args (e.g., AnvilCLIArgs contains anvil: AnvilRunner)
+* **SerializableDataFrame**: Use SerializableDataFrame for DataFrame fields inside Pydantic BaseModel classes to make them Flyte-serializable
+* **field_validator**: Use @field_validator in BaseModel classes to handle type conversions (e.g., converting file paths to loaded DataFrames)
+* **Consolidate duplicate classes/functions**: When a class or function already exists elsewhere in the codebase with similar purpose, refactor to use the existing one rather than maintaining duplicates. Extend the existing class (or function) with additional fields (or params) if needed.
+* **Move utility methods to domain classes**: Functions that operate primarily on a single class's data (like _matches_smarts_patterns operating on Compounds1D) should be refactored as methods on that class for better encapsulation.
+* **Use private naming for internal functions**: Functions that are implementation details and not part of the public API should be prefixed with _ (e.g., create_custom_library → _create_custom_library).
+* **Consistent field naming across configs**: When refactoring configuration classes, update all YAML/config files to use consistent field names that match the canonical class definition (e.g., reaction_id/smirks → id/smarts).
+* **Document future work with TODOs**: Add TODO comments in docstrings for planned enhancements that are out of scope for the current PR.
+* **Update test class names to match refactored code**: When renaming functions or moving methods, update test class names and docstrings to reflect the new location/naming.
+* **Prefer method calls over standalone functions**: Replace function(obj, args) patterns with obj.method(args) when the function logically belongs to the object's interface.
+
+Example:
+```python
+class ModelType(enum.Enum):
+    RIDGE = "ridge"
+    LASSO = "lasso"
+
+class AnvilRunner(BaseModelNoExtra):
+    data: SerializableDataFrame
+    target_col: str
+    model_type: ModelType
+
+    def train(self) -> AnvilResults:
+        # Implementation here
+        pass
+
+class AnvilCLIArgs(BaseModelNoExtra):
+    anvil: AnvilRunner
+    remote: bool = False
+    flyte_project: FlyteProject
+    flyte_domain: FlyteDomain
+
+def main() -> None:
+    parser = PydanticArgparse(AnvilCLIArgs)
+    args = parser.parse_model()
+    ...
+```
+
+## Testing
+
+### Guidelines
+- Use parameters with values that result in fast running tests, while ensuring that test coverage is maintained.
+- No test function should take more than 10 seconds to run.
+- Include tests that check for edge cases and error handling.
+- Include tests that check that results have the expected shape (when arrays, series, or dataframes) and values.
+- Tests should assert the correct conditions outlined in the tested code documentation or user instructions. Before altering failing tests, make sure the code under test is correct.
+- **No redundant docstrings**: Do not add docstrings to test classes or methods that merely restate the class/method name (e.g., `"""Tests for MyClass."""` on `TestMyClass`, or `"""None returns default."""` on `test_none_returns_default`). Only add a docstring when it provides information beyond what the name already conveys (e.g., specifying which flags are forwarded, clarifying what a domain term means, or noting a non-obvious implementation detail being tested).
+- **No trivial config tests**: Do not write tests that only verify a config parameter is stored and returned (e.g., setting `name="foo"` then asserting `obj.name == "foo"`). Tests should verify meaningful behavior, transformations, or side effects.
+
+### Configuration
+- Uses pytest with markers for slow tests: `pytest -m "not slow"`
+- Ignore deprecation warnings and cryptography warnings
+- Test files should follow pattern `test_*.py` or be in `tests/` directories
+- Test files should use pytest instead of unittest
+
+### Organization Best Practices
+
+When writing tests, centralize mock data and setup in conftest.py fixtures to avoid duplication:
+
+1. **Base fixtures with clear inheritance hierarchy**:
+   - Create base fixtures with minimal default behavior
+   - Build specialized fixtures that extend base fixtures, overriding only what changes
+   - Add data fixtures that provide test datasets
+   - Create specialized fixtures for commonly used test objects
+
+2. **Avoid redundant setup in tests**:
+   - Don't manually create mocks that fixtures already provide
+   - Don't patch functions that are already mocked in fixtures
+   - Use fixture composition instead of duplicating setup code
+
+3. **Fixture design principles**:
+   - Each fixture should have a single, clear purpose
+   - Child fixtures should use parent fixtures and only override what's necessary
+   - Mock data should live in fixtures, not in individual tests
+   - Use consistent mock values across related fixtures
+
+### Writing Quality Tests (Google Testing Standards)
+
+Always follow Google Testing Standards when writing or reviewing Python tests, unless given other explicit testing guidelines for the session:
+
+#### Test Structure
+- **Separate concerns**: Success cases and error cases in different test methods
+- **No conditional logic**: Avoid `if` statements in test bodies
+- **Single responsibility**: Each test method tests one specific behavior
+- **Clear naming**: Test names should describe the exact scenario being tested
+
+#### Fixture Design
+- **Focused fixtures**: Each fixture should have a single, clear purpose
+- **Avoid complex factories**: Replace complex fixture logic with multiple simple fixtures
+- **Consistent setup**: Use fixtures for common setup, not complex conditional logic
+
+#### Mocks
+- **Judicious use of mocks**: Mocks are important tools and should be used when needed.
+- **Be careful not to over-mock.**
+- **If you are creating many mocks repeatedly, take a step back and consider what the goal of the test is.**
+- **Signs of over-mocking include:**
+  - Many mocks in a single test method
+  - Complex setup logic in tests to create mock objects
+  - Mocks that are not directly related to the behavior being tested
+  - High Fragility: Tests that break frequently when internal implementation details change, rather than when functionality changes. 
+  - Readability Issues: If understanding the test requires stepping through the code being tested to understand the mock setup, the test is likely over-mocked. 
+  - Over-reliance on verifying that mocks were called a specific number of times. Sometimes this is useful but ideally will not be the primary test readout.
+
+#### Test Content
+- **Test behavior, not implementation**: Focus on what the code does, not how it does it
+- **Remove dead code**: No commented-out tests or fixtures
+- **Descriptive assertions**: Use specific error messages and clear expected values
+- **In general, direct literal assertions are favored over multiple intermediate assertions which create indirection.**
+
+#### Parametrization
+- **Data variations only**: Use `@pytest.mark.parametrize` for different data, not different behaviors
+- **Consistent behavior**: All parametrized cases should test the same type of outcome
+
+#### Examples of Good vs Bad Practices
+
+**❌ Bad: Mixed success/error cases**
+```python
+@pytest.mark.parametrize("data,should_raise", [
+    (valid_data, False),
+    (invalid_data, True),
+])
+def test_function(data, should_raise):
+    if should_raise:
+        with pytest.raises(ValueError):
+            function(data)
+    else:
+        result = function(data)
+        assert result == expected
+```
+
+**✅ Good: Separate test methods**
+```python
+def test_function_success_cases(self, valid_data):
+    result = function(valid_data)
+    assert result == expected
+
+def test_function_raises_error_invalid_input(self, invalid_data):
+    with pytest.raises(ValueError, match="specific error message"):
+        function(invalid_data)
+```
+
+**❌ Bad: multiple assertions create indirection when a single assertion would suffice**
+```python
+def test_creates_url(self, df, url_lookup):
+    html_value = build_hyperlink(text, url)
+    assert html_value is not None
+    assert "<span" not in html_value
+    assert "<a href" in html_value
+ ```
+**✅ Good: Simple direct assertion, no ambiguity**
+```python
+    html_value = build_hyperlink(text, url)
+    assert html_value == '<a href="http://a.com" target="_blank">'
+```
+
+## Marimo Apps
+
+Marimo files should use the `.mo.py` extension.
+* When creating a new app, start from the template: `cp rezo/common/notebooks/marimo/templates/app_template.mo.py path/to/my_app.mo.py`. The template includes an imports cell, a `dev_mode_banner()` cell, a layout cell with tabs, and an example content cell. Register the app in `infra/apps/apps_config.yaml` to deploy it.
+* Do NOT run `pyright` on `.mo.py`.
+* After making changes to a marimo file run:
+  - `marimo check <file.mo.py>` to verify syntax.
+  - `python <file.mo.py>` to verify the app can run end-to-end.
+* Always fail hard on error by default (don't just log or swallow the error)
+* All imports should go in the first cell.
+* The full app layout should go in the second cell improving readability and understandability of the app.
+* All deployable apps should include a `dev_mode_banner()` cell (from `rezo.common.utils.marimo`) above the layout cell.
+* Refer to rezo/common/notebooks/marimo/examples/marimo-demo.mo.py for patterns, style, and conventions to emulate in new apps.
+* Avoid creating very large cells with 100s of lines of code. Break complex logic into smaller functions or classes in separate modules or simply use multiple cells in the app.
+* Except for rapid prototyping, complex non-UI logic should be moved to utility functions or classes in separate files and imported into the marimo app.
+  * Add tests that follow testing guidelines above for any non-UI logic moved out of the marimo app.
+*  Use polars for data processing (filtering, aggregation, sorting on regular columns) whenever possible for performance.
+* Use format_mapping to allow HTML/hyperlinks and images in cells to be sorted/filtered. This works for both pandas and polars when using the marimo UI table.
+- Convert to pandas for display if
+    - the df contains base64 images and you want hover-over image previews to render by default in the marimo table.

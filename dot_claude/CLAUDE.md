@@ -28,48 +28,36 @@ Example:
 
 # Memory System
 
-You have access to a temporal knowledge graph via Graphiti MCP. Use it to:
-- Remember facts about the user and project across sessions
-- Track how information evolves over time
-- Search for relevant context before making decisions
+You have access to persistent memory via the MCP memory service.
 
-## MCP Tools Available
+## Protocol
+* **On every user request**: call `retrieve_memory` or `search_by_tag`
+  with the user's topic to check for relevant prior context.
+* **Before responding**: call `store_memory` with any key decisions,
+  results, or user preferences learned during this turn.
 
-* mcp__graphiti__add_episode: Store new information (conversations, decisions, results)
-* mcp__graphiti__search_facts: Find relevant relationships/edges before acting
-* mcp__graphiti__search_nodes: Find entity summaries
-* mcp__graphiti__get_episodes: Retrieve recent conversation history
-
-## Protocol for using memory
-
-* **ALWAYS CHECK THE MEMORY RIGHT AFTER THE USER SUBMITS A REQUEST:**
-  1. Call `search_facts` with the user's query/topic. This returns edge info between nodes.
-  2. Call `search_nodes` to get context on the nodes connected by relevant facts
-  3. Incorporate relevant information into your context window
-* **ALWAYS UPDATE THE MEMORY RIGHT BEFORE RESPONDING TO THE USER:**
-  * Call `add_episode` with:
-     - Key decisions made
-     - Results/outcomes
-     - User preferences learned
-     - Important context for future
-* If user says "Add X to memory": call add_episode
-
-## What to Store (add_episode)
-
-Parameters:
-* name: identifier for the episode
-* episode_body: content
-* source_type | episode_type: enum: text (e.g. natural language description) or json (e.g. structure data from ml experiment)
-* source_description: description of where the information came from (e.g. "ml experiment X" or "research paper Y")
-* reference_time: current datetime
-* group_id: always fixed to constant greg
+## What to Store
+- Key decisions and outcomes
+- User preferences
+- Important context for future sessions
 
 ## What NOT to Store
+- Raw data dumps
+- Secrets / API keys
+- Temporary debugging info
 
-  - Raw data dumps or large outputs
-  - Secrets, API keys, passwords
-  - Temporary debugging info
-  - Obvious/trivial information
+
+# Writing Bug Repros
+
+When creating a minimal reproducible example for a bug:
+
+1. **Strip all internal dependencies.** Use only the library under test plus standard/common packages (pandas, pydantic, etc.). No internal modules, no custom wrappers, no project-specific utilities.
+2. **One file, copy-pasteable.** The repro should be a single self-contained script that anyone with the library installed can run.
+3. **Include a flag to toggle working vs broken behavior.** This makes it trivial to confirm the bug and rules out environmental issues. For example, `--bare` for the working path vs default for the broken path.
+4. **Add a timeout with stack dump.** For deadlocks/hangs, use `signal.SIGALRM` to dump all thread stacks after a timeout so the hang location is obvious.
+5. **Test both local and remote paths.** Bugs may only manifest in one mode. For Flyte: `flyte run --local` (CLI local), `flyte run` (CLI remote), and `flyte.run()` (Python API remote) are three distinct code paths.
+6. **Minimize data.** Use the smallest possible input (e.g., 3-row DataFrame) that still triggers the issue.
+7. **Name the file descriptively.** e.g., `test_pydantic_flyte_df_pyapi.py` — include what's being tested and how it's invoked.
 
 
 # Build Cache Policy
@@ -88,6 +76,32 @@ If you encounter build errors like CUDA version mismatches or stale object files
 When reserving K8s pods:
 - **ALWAYS use the default 5 hours** unless the user explicitly specifies a different duration
 - Do NOT override the default duration with shorter times
+
+
+# Running Commands on K8s Pods
+
+When running commands via `kubectl exec`, **ALWAYS redirect full output to a file on the remote pod**, then retrieve the output separately. This prevents kubectl connection timeouts from losing output for long-running commands.
+
+**Pattern:**
+```bash
+# Run command, redirect stdout+stderr to file on pod
+~/.claude/run_cli.py run "kubectl --context=west1 exec POD_NAME -n development -- bash -c 'COMMAND > /tmp/output.log 2>&1'"
+
+# Then retrieve output
+~/.claude/run_cli.py run "kubectl --context=west1 exec POD_NAME -n development -- tail -100 /tmp/output.log"
+```
+
+**Example:**
+```bash
+# Run benchmark, save output on pod
+~/.claude/run_cli.py run "kubectl --context=west1 exec my-pod -n development -- bash -c 'cd /workspace && PYTHONPATH=. .venv/bin/python benchmark.py --flag > /tmp/benchmark.log 2>&1'"
+
+# Check if done (look for final output lines)
+~/.claude/run_cli.py run "kubectl --context=west1 exec my-pod -n development -- tail -30 /tmp/benchmark.log"
+```
+
+- Use unique log filenames if running multiple commands (e.g., `/tmp/bench_grid.log`, `/tmp/bench_mlp.log`)
+- For very long commands, check progress with `tail` periodically
 
 
 # GNINA Build Workflow
@@ -111,3 +125,51 @@ The locally-built binary may have library mismatches with K8s pod environments (
 1. Use a K8s pod with the **same image** as the build: `us-central1-docker.pkg.dev/gke-test-421317/flyte/gnina-build-base:latest`
 2. The pod should mount or have access to the same library versions
 3. If you get symbol lookup errors like `undefined symbol: _ZNK3c105Error4whatEv`, it's a libtorch version mismatch
+
+
+# Debugging Flyte Workflows
+
+## Finding Compounds1D Parquet Paths
+
+When a Flyte task fails with compound/docking errors, find the input parquet file to inspect the error column:
+
+1. **Get the workflow metadata:**
+   ```bash
+   kubectl get flyteworkflows.flyte.lyft.com <execution-id> -n development -o json
+   ```
+
+2. **Find the data directory** from the workflow status:
+   - Look at `status.nodeStatus.<node-id>.outputDir` for the failing node
+   - Example: `gs://opta-gcp-rezotx-uc-us-central1/metadata/propeller/<project>-<domain>-<execution>/...`
+
+3. **Download an inputs.pb file** from the nested node structure:
+   ```bash
+   gsutil cp gs://.../fau5gk1i/data/0/dn0/0/dn*/inputs.pb /tmp/inputs.pb
+   ```
+
+4. **Search for parquet URIs** in the protobuf (they're in `gs://rezo-flyte/scratch/serializable/`):
+   ```python
+   import re
+   with open('/tmp/inputs.pb', 'rb') as f:
+       content = f.read().decode('utf-8', errors='ignore')
+   parquet_uris = re.findall(r'gs://rezo-flyte/scratch/[^\s]+\.parquet', content)
+   ```
+
+5. **Download and inspect the parquet:**
+   ```bash
+   gsutil cp gs://rezo-flyte/scratch/serializable/<hash>.parquet /tmp/compounds.parquet
+   ```
+   ```python
+   import pandas as pd
+   df = pd.read_parquet('/tmp/compounds.parquet')
+   print(df['error'].unique())  # Check error messages
+   ```
+
+
+# Pull Requests
+
+When creating or updating a PR, always show the Graphite URL to the user (from `gt submit` output).
+
+# Graphite
+
+**NEVER run `gt restack`**. Restacking can cause conflicts and unintended changes across the branch stack. If `gt submit` fails because it wants a restack, stop and ask the user how to proceed.

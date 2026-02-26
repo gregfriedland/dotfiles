@@ -72,7 +72,217 @@ for pattern in PDB_FILES:
 
 ### 3. Generate PyMOL Script
 
-Create a Python script that PyMOL will execute.
+Create a Python script that PyMOL will execute:
+
+```python
+#!/usr/bin/env python3
+"""PyMOL session generator script."""
+
+import pymol
+from pymol import cmd
+import os
+import glob
+
+# Configuration
+PDB_FILES = {PDB_FILES_LIST}  # List of PDB paths
+LIGAND_FILES = {LIGAND_FILES_LIST}  # List of ligand paths
+OUTPUT_FILE = "{OUTPUT_PSE}"
+INTERFACE_DIST = {INTERFACE_DIST}
+ENSEMBLE_MODE = {ENSEMBLE_MODE}
+DO_ALIGN = {DO_ALIGN}
+COLOR_SCHEME = "{COLOR_SCHEME}"
+
+def setup_visualization():
+    """Configure PyMOL settings for publication-quality images."""
+    # Background and rendering
+    cmd.bg_color("black")
+    cmd.set("ray_opaque_background", 1)
+    cmd.set("antialias", 2)
+    cmd.set("orthoscopic", 1)
+
+    # Cartoon settings
+    cmd.set("cartoon_fancy_helices", 1)
+    cmd.set("cartoon_side_chain_helper", 1)
+    cmd.set("cartoon_transparency", 0.0)
+
+    # Stick settings
+    cmd.set("stick_radius", 0.15)
+    cmd.set("stick_ball", 0)
+
+    # Line settings
+    cmd.set("line_width", 2)
+
+    # Label settings
+    cmd.set("label_size", 20)
+    cmd.set("label_font_id", 7)
+
+def load_proteins():
+    """Load protein PDB files."""
+    protein_objects = []
+
+    if ENSEMBLE_MODE and len(PDB_FILES) > 1:
+        # Load as states in single object
+        ensemble_name = "ensemble"
+        for i, pdb_file in enumerate(PDB_FILES):
+            if i == 0:
+                cmd.load(pdb_file, ensemble_name)
+            else:
+                cmd.load(pdb_file, ensemble_name, state=i+1)
+        protein_objects.append(ensemble_name)
+        print(f"Loaded {len(PDB_FILES)} structures as states in '{ensemble_name}'")
+    else:
+        # Load as separate objects
+        for pdb_file in PDB_FILES:
+            obj_name = os.path.splitext(os.path.basename(pdb_file))[0]
+            # Sanitize name for PyMOL
+            obj_name = obj_name.replace("-", "_").replace(" ", "_")
+            cmd.load(pdb_file, obj_name)
+            protein_objects.append(obj_name)
+            print(f"Loaded {pdb_file} as '{obj_name}'")
+
+    return protein_objects
+
+def load_ligands():
+    """Load ligand files (SDF, MOL2)."""
+    ligand_objects = []
+
+    for lig_file in LIGAND_FILES:
+        obj_name = os.path.splitext(os.path.basename(lig_file))[0]
+        obj_name = "lig_" + obj_name.replace("-", "_").replace(" ", "_")
+
+        # Load SDF - each molecule becomes a state
+        cmd.load(lig_file, obj_name)
+        ligand_objects.append(obj_name)
+
+        n_states = cmd.count_states(obj_name)
+        print(f"Loaded {lig_file} as '{obj_name}' ({n_states} states)")
+
+    return ligand_objects
+
+def align_structures(protein_objects):
+    """Align all protein backbones to the first structure."""
+    if len(protein_objects) < 2 or not DO_ALIGN:
+        return
+
+    reference = protein_objects[0]
+    for target in protein_objects[1:]:
+        # Align on CA atoms (backbone)
+        result = cmd.align(f"{target} and name CA", f"{reference} and name CA")
+        rmsd = result[0]
+        n_atoms = result[1]
+        print(f"Aligned {target} to {reference}: RMSD={rmsd:.2f} A ({n_atoms} atoms)")
+
+def style_proteins(protein_objects):
+    """Apply cartoon style to proteins."""
+    for obj in protein_objects:
+        # Show as cartoon
+        cmd.show("cartoon", obj)
+        cmd.hide("lines", obj)
+        cmd.hide("sticks", obj)
+
+        # Color by scheme
+        if COLOR_SCHEME == "chain":
+            cmd.util.cbc(obj)  # Color by chain
+        elif COLOR_SCHEME == "spectrum":
+            cmd.spectrum("count", "rainbow", obj)
+        elif COLOR_SCHEME == "ss":
+            cmd.color("red", f"{obj} and ss h")  # Helices
+            cmd.color("yellow", f"{obj} and ss s")  # Sheets
+            cmd.color("green", f"{obj} and ss l+''")  # Loops
+
+        # Remove hydrogens from protein display
+        cmd.hide("everything", f"{obj} and hydro")
+
+def style_ligands(ligand_objects):
+    """Apply stick style to ligands, remove hydrogens."""
+    for obj in ligand_objects:
+        # Show as sticks
+        cmd.show("sticks", obj)
+        cmd.hide("cartoon", obj)
+        cmd.hide("lines", obj)
+
+        # Remove hydrogens
+        cmd.hide("everything", f"{obj} and hydro")
+
+        # Color by element with carbon in unique color
+        cmd.util.cbag(obj)  # Color by atom, green carbons
+
+        # Make ligand more visible
+        cmd.set("stick_radius", 0.2, obj)
+
+def show_interface_residues(protein_objects, ligand_objects):
+    """Show protein residues within INTERFACE_DIST of ligands as lines."""
+    if not ligand_objects:
+        return
+
+    # Create selection for all ligands
+    all_ligands = " or ".join(ligand_objects)
+
+    for prot_obj in protein_objects:
+        # Select interface residues
+        interface_sel = f"interface_{prot_obj}"
+        cmd.select(
+            interface_sel,
+            f"(byres ({prot_obj} within {INTERFACE_DIST} of ({all_ligands}))) and {prot_obj}"
+        )
+
+        # Show as lines (in addition to cartoon)
+        cmd.show("lines", interface_sel)
+
+        # Hide hydrogens on interface residues too
+        cmd.hide("everything", f"{interface_sel} and hydro")
+
+        n_res = cmd.count_atoms(f"{interface_sel} and name CA")
+        print(f"Interface residues for {prot_obj}: {n_res} residues within {INTERFACE_DIST} A")
+
+        # Disable selection to clean up
+        cmd.disable(interface_sel)
+
+def finalize_session():
+    """Final adjustments and save session."""
+    # Center and zoom
+    cmd.center("all")
+    cmd.zoom("all", buffer=2)
+
+    # Orient for best view
+    cmd.orient("all")
+
+    # Deselect everything
+    cmd.deselect()
+
+    # Save session
+    cmd.save(OUTPUT_FILE)
+    print(f"\nSaved PyMOL session to: {OUTPUT_FILE}")
+
+def main():
+    """Main function to create PyMOL session."""
+    print("=== PyMOL Session Generator ===\n")
+
+    # Setup visualization settings
+    setup_visualization()
+
+    # Load structures
+    protein_objects = load_proteins()
+    ligand_objects = load_ligands()
+
+    # Align proteins
+    if DO_ALIGN and len(protein_objects) > 1:
+        print("\n--- Aligning structures ---")
+        align_structures(protein_objects)
+
+    # Apply styles
+    print("\n--- Applying visualization ---")
+    style_proteins(protein_objects)
+    style_ligands(ligand_objects)
+    show_interface_residues(protein_objects, ligand_objects)
+
+    # Finalize and save
+    print("\n--- Finalizing ---")
+    finalize_session()
+
+if __name__ == "__main__":
+    main()
+```
 
 ### 4. Run PyMOL
 

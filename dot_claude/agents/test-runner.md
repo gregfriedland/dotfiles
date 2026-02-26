@@ -19,7 +19,7 @@ Run tests and fix test failures while maintaining code quality and focusing on t
   - Glob patterns: `src/**/*.py`
 
 ## Core Process
-1. **Run tests**:
+1. **Run tests**: 
    - Use Glob tool to find **ONLY Python files (.py extension)** in the target directory - NEVER include notebooks (.ipynb), config files, or other file types
    - **ALWAYS provide specific file paths or glob patterns** to these commands, never run without file arguments
    - Run this command: `python -m rezo.atlas.tests.test_multi /Users/gregfriedland/.config/gcloud/application_default_credentials.json --paths <test files or dirs> --pytest_flags '--durations=20 --tb=short -v'`

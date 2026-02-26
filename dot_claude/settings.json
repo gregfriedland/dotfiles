@@ -27,7 +27,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
@@ -35,9 +35,41 @@
           }
         ]
       }
+    ],
+    "Notification": [
+      {
+        "matcher": "idle_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/gregfriedland/.claude/notify-zellij.sh idle"
+          }
+        ]
+      },
+      {
+        "matcher": "permission_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/gregfriedland/.claude/notify-zellij.sh permission"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/gregfriedland/.claude/notify-zellij.sh stop"
+          }
+        ]
+      }
     ]
   },
   "enabledPlugins": {
     "rust-analyzer-lsp@claude-plugins-official": true
-  }
+  },
+  "autoUpdatesChannel": "latest"
 }
